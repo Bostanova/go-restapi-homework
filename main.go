@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -50,11 +51,14 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		fmt.Println("Ошибка записи тела ответа: ", err)
+	}
 }
 
 // Обработчик для отправки задачи на сервер
-func postTask(w http.ResponseWriter, r *http.Request) {
+func createTask(w http.ResponseWriter, r *http.Request) {
 	var task Task
 	var buf bytes.Buffer
 
@@ -67,6 +71,17 @@ func postTask(w http.ResponseWriter, r *http.Request) {
 	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	_, ok := tasks[task.ID]
+	if ok {
+		http.Error(w, "Задача c указанным id уже существует", http.StatusBadRequest)
+		return
+	}
+
+	if len(task.Applications) == 0 {
+		app := strings.Split(r.Header.Get("User-Agent"), "/")[0]
+		task.Applications = append(task.Applications, app)
 	}
 
 	tasks[task.ID] = task
@@ -92,7 +107,10 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		fmt.Println("Ошибка записи тела ответа: ", err)
+	}
 }
 
 // Обработчик удаления задачи по ID
@@ -109,14 +127,13 @@ func deleteTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Запись удалена"))
 }
 
 func main() {
 	r := chi.NewRouter()
 
 	r.Get("/tasks", getTasks)
-	r.Post("/tasks", postTask)
+	r.Post("/tasks", createTask)
 	r.Get("/tasks/{id}", getTask)
 	r.Delete("/tasks/{id}", deleteTask)
 
